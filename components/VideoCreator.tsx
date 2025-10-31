@@ -25,6 +25,7 @@ const VideoCreator: React.FC = () => {
     const [animationType, setAnimationType] = useState<'fade' | 'kenburns'>('fade');
     const [error, setError] = useState<string | null>(null);
     const [scenes, setScenes] = useState<Scene[]>([]);
+    const [characterDescription, setCharacterDescription] = useState<string | null>(null);
     const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
     const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
     const [processingState, setProcessingState] = useState<ProcessingStep[]>(initialProcessingSteps);
@@ -92,6 +93,7 @@ const VideoCreator: React.FC = () => {
 
         setError(null);
         setScenes([]);
+        setCharacterDescription(null);
         setAudioBuffer(null);
         setAudioPreviewUrl(null);
         setVideoBlobUrl(null);
@@ -101,12 +103,12 @@ const VideoCreator: React.FC = () => {
         try {
             // Step 1: Analyze script
             updateStep('analyze', 'in-progress');
-            const analyzedScenes = await analyzeScript(script);
+            const { character_description, scenes: analyzedScenes } = await analyzeScript(script);
             if (!analyzedScenes || analyzedScenes.length === 0) {
               throw new Error("Script analysis did not return any scenes.");
             }
             updateStep('analyze', 'success');
-            // Set scenes initially without images for UI feedback
+            setCharacterDescription(character_description);
             setScenes(analyzedScenes);
 
             // Step 2 & 3 in parallel: Generate Audio and sequential Images
@@ -329,7 +331,7 @@ const VideoCreator: React.FC = () => {
 
     return (
         <div className="bg-gray-800 rounded-lg shadow-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">Hindi Script to Video Creator</h2>
+            <h2 className="text-2xl font-bold mb-4 text-indigo-400">Hindi Script to Anime Creator</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Control Panel */}
                 <div className="space-y-4">
@@ -376,6 +378,13 @@ const VideoCreator: React.FC = () => {
                     {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
 
                     {processingState[0].status !== 'pending' && <StatusBar steps={processingState} />}
+
+                    {characterDescription && (
+                        <div className="bg-gray-700/50 rounded-lg p-3">
+                            <h4 className="text-sm font-medium text-indigo-300 mb-2">AI Character Concept</h4>
+                            <p className="text-sm text-gray-300 italic">{characterDescription}</p>
+                        </div>
+                    )}
 
                     {audioPreviewUrl && !isProcessing && (
                          <div className="bg-gray-700/50 rounded-lg p-3">

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality, GenerateContentResponse } from "@google/genai";
-import type { Scene } from '../types';
+import type { Scene, ScriptAnalysis } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
@@ -73,40 +73,51 @@ export const editImage = async (base64ImageData: string, mimeType: string, promp
     }
 };
 
-export const analyzeScript = async (script: string): Promise<Scene[]> => {
-    // FIX: Declare response outside the try block to access it in the catch block for error logging.
+export const analyzeScript = async (script: string): Promise<ScriptAnalysis> => {
     let response: GenerateContentResponse;
     try {
-        const prompt = `Analyze the following Hindi script. Divide it into logical scenes. For each scene, provide the scene number, the exact text for that scene, and a concise, descriptive English prompt for an image generation model to create a relevant visual. Respond in JSON format. Script: "${script}"`;
+        const prompt = `You are a creative director for an anime series. Analyze the following Hindi script.
+1. Create a detailed description of a consistent main character suitable for an anime, inspired by the script's context and Indian settings. This description should be reusable.
+2. Divide the script into logical scenes.
+3. For each scene, write a concise, descriptive English image prompt. Each prompt MUST start with 'Anime scene, vibrant colors, ...' and MUST include the main character description to ensure consistency.
+Respond in a single JSON object with two keys: 'character_description' (string) and 'scenes' (an array of objects with 'scene', 'text', and 'image_prompt').
+Script: "${script}"`;
+
         response = await ai.models.generateContent({
             model: 'gemini-2.5-pro',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            scene: { type: Type.INTEGER },
-                            text: { type: Type.STRING },
-                            image_prompt: { type: Type.STRING }
-                        },
-                        required: ["scene", "text", "image_prompt"]
-                    }
+                    type: Type.OBJECT,
+                    properties: {
+                        character_description: { type: Type.STRING },
+                        scenes: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    scene: { type: Type.INTEGER },
+                                    text: { type: Type.STRING },
+                                    image_prompt: { type: Type.STRING }
+                                },
+                                required: ["scene", "text", "image_prompt"]
+                            }
+                        }
+                    },
+                    required: ["character_description", "scenes"]
                 }
             }
         });
         
         let jsonString = response.text.trim();
-        // The model can sometimes wrap the JSON in ```json ... ```, so we strip that.
         const match = jsonString.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
         if (match && match[1]) {
             jsonString = match[1];
         }
 
-        const scenes = JSON.parse(jsonString);
-        return scenes;
+        const analysis: ScriptAnalysis = JSON.parse(jsonString);
+        return analysis;
 
     } catch (error) {
         console.error("Error analyzing script:", error);
@@ -149,9 +160,12 @@ export const generateSceneImage = async (prompt: string): Promise<string> => {
 export const checkImageQuality = async (base64ImageData: string, mimeType: string, prompt: string): Promise<{ pass: boolean; feedback: string }> => {
     let response: GenerateContentResponse;
     try {
-        const qualityPrompt = `You are an AI image quality assurance expert. Analyze the provided image based on the original prompt: "${prompt}". 
-        Is the image a high-quality, non-distorted, and accurate representation of the prompt? 
-        Respond ONLY with a JSON object with keys 'pass' (boolean) and 'feedback' (string, a brief explanation for your decision, max 20 words).`;
+        const qualityPrompt = `You are an AI image quality assurance expert for an anime production. Analyze the provided image based on the original prompt: "${prompt}".
+Check for the following:
+1. Is the style consistent with 'anime style'?
+2. Is the character design consistent with the description in the prompt?
+3. Is the image high-quality, non-distorted, and an accurate representation of the scene described?
+Respond ONLY with a JSON object with keys 'pass' (boolean) and 'feedback' (string, a brief explanation, max 20 words).`;
         
         response = await ai.models.generateContent({
             model: 'gemini-2.5-pro',

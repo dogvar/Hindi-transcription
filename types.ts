@@ -9,6 +9,11 @@ export interface Scene {
   };
 }
 
+export interface ScriptAnalysis {
+  character_description: string;
+  scenes: Scene[];
+}
+
 export interface VoiceOption {
   name: string;
   value: string;
